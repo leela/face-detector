@@ -1,0 +1,57 @@
+version: "3"
+services:
+  db:
+    image: postgres:alpine
+    environment:
+        POSTGRES_PASSWORD: pguser123
+        POSTGRES_USER: pguser
+        POSTGRES_DB: face_detector
+        TZ: Asia/Kolkata
+    volumes:
+        - db-volume:/var/lib/postgresql/data
+  minio:
+      image: minio/minio
+      command: server /data
+      environment:
+          MINIO_ACCESS_KEY: minio
+          MINIO_SECRET_KEY: minio123
+          TZ: Asia/Kolkata
+      volumes:
+          - storage-volume:/data
+      ports:
+          - "127.0.0.1:1209:9000"
+  redis:
+      image: redis:alpine
+  api:
+      build: ./detectorapi
+      restart: on-failure
+      volumes:
+          - ./detectorapi:/code
+      environment:
+          DATABASE_URL: "postgres://pguser:pguser123@db/face_detector"
+          REDIS_URL: "redis://redis"
+          AWS_ACCESS_KEY_ID: minio
+          AWS_SECRET_ACCESS_KEY: minio123
+          AWS_ENDPOINT_URL: http://minio.${APP_HOSTNAME:-local.rorodata.net}/
+          STORAGE_BUCKET: storage
+          TZ: Asia/Kolkata
+      depends_on:
+          - db
+          - minio
+      ports:
+          - "127.0.0.1:1201:8000"
+  web:
+      build: ./frontend
+      restart: on-failure
+      volumes:
+        - ./frontend:/code
+      environment:
+        FLASK_ENV: development
+      depends_on:
+          - minio
+      ports:
+          - "127.0.0.1:8000:5000"
+
+volumes:
+  db-volume:
+  storage-volume:
